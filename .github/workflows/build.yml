@@ -13,15 +13,19 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: Unzip If Zip Exists
+    - name: Unzip and Flatten Structure
       run: |
         if [ -f "PyMLRunner.zip" ]; then
-          unzip -o PyMLRunner.zip
-          # Agar zip ke andar PyMLRunner naam ka subfolder nikla toh use bahar le aayenge
-          if [ -d "PyMLRunner" ]; then
-            cp -r PyMLRunner/* . || true
+          unzip -q -o PyMLRunner.zip -d extracted_temp
+          # Agar zip ke andar PyMLRunner folder hai toh content root pe le aao
+          if [ -d "extracted_temp/PyMLRunner" ]; then
+            cp -r extracted_temp/PyMLRunner/* .
+          else
+            cp -r extracted_temp/* .
           fi
+          rm -rf extracted_temp
         fi
+        ls -la
 
     - name: Set up JDK 17
       uses: actions/setup-java@v4
@@ -29,22 +33,24 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Gradle
-      uses: gradle/actions/setup-gradle@v3
-
     - name: Grant execute permission for gradlew
-      run: chmod +x gradlew || true
-
-    - name: Build Debug APK
       run: |
         if [ -f "./gradlew" ]; then
-          ./gradlew assembleDebug --stacktrace
+          chmod +x ./gradlew
+        fi
+
+    - name: Build with Gradle Wrapper or Fallback
+      run: |
+        if [ -f "./gradlew" ]; then
+          ./gradlew assembleDebug --stacktrace --no-daemon
         else
-          gradle assembleDebug --stacktrace
+          gradle assembleDebug --stacktrace --no-daemon
         fi
 
     - name: Upload APK
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: PyMLRunner-Debug-APK
         path: "**/build/outputs/apk/debug/*.apk"
+        if-no-files-found: ignore
